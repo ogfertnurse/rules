@@ -174,10 +174,10 @@ When adding new pages to an existing documentation set:
 
 Use subdirectories instead of flat files when any of the following apply:
 
-- **Consistency**: If a directory already contains at least one subdirectory, convert all remaining flat files into subdirectories too. A directory should not mix flat files and subdirectories — keep the structure uniform.
 - **Logical grouping**: Multiple files cover the same topic from different angles (e.g., a configuration guide and a reference for the same component). Group them in one subdirectory.
 - **Eliminating numbering gaps**: Flat files with non-sequential numbers (e.g., 00, 01, 02, 06, 07) indicate a structural problem. Reorganize into subdirectories with sequential numbering.
 - **Scalability**: A section is likely to grow. A subdirectory with its own `llms.txt` is easier to extend than adding more flat files to a crowded parent directory.
-- **Even single files**: If every sibling is a subdirectory, a standalone topic with only one file should still be a subdirectory containing that single file. This keeps the parent `llms.txt` uniform (all entries link to `<dir>/llms.txt` rather than mixing `<dir>/llms.txt` and `<file>.md`).
+
+A directory may contain both markdown files and child subdirectories. The `llms.txt` for such a directory lists both (files as `NN-name.md` links, subdirectories as `NN-name/llms.txt` links).
 
 When creating subdirectories, files within are renumbered starting from `00-`. Each subdirectory gets its own `llms.txt` following the standard format.
