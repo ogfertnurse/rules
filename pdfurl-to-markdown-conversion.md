@@ -161,6 +161,149 @@ Content starts here...
 
 A section that has a heading and 1-2 sentences when the source has a full page under that heading is **incomplete**, not done.
 
+## Planning Phase
+
+Before converting, build a structured plan that breaks the work into manageable units.
+
+### Step 1: Extract the Table of Contents
+
+Read the source's table of contents (or sitemap for web sources) to build an authoritative list of every chapter, section, and subsection with its page range or URL.
+
+### Step 2: Compute Word Counts Per Chapter
+
+Extract a baseline word count for each chapter or section. The method depends on the source type.
+
+**For PDF sources**, use `pdftotext` to extract word counts per chapter:
+
+```bash
+# Determine the PDF page offset (front matter pages before page 1)
+# Then for each chapter:
+pdftotext -f <pdf_start> -l <pdf_end> source.pdf - | wc -w
+```
+
+**For web/URL sources**, fetch each page and count words from the visible text:
+
+```bash
+# Using curl + sed to strip HTML tags:
+curl -s "https://example.com/docs/chapter1" | sed 's/<[^>]*>//g' | wc -w
+
+# Or using lynx for cleaner text extraction (if available):
+lynx -dump -nolist "https://example.com/docs/chapter1" | wc -w
+```
+
+For web sources where exact word counts are impractical (e.g., dynamically rendered pages, content behind authentication), use a **heading-based audit** instead: list every `<h2>` and `<h3>` heading on the source page and verify each appears in the markdown. This serves as the completeness check in place of word counts.
+
+Record a reference table of chapter/section titles, page ranges (or URLs), and word counts. This table is the baseline for verification.
+
+### Step 3: Design the Directory Structure
+
+Map each chapter/section to a target markdown file or subdirectory:
+
+- **Small chapters** (< 5,000 words): Single markdown file.
+- **Medium chapters** (5,000-15,000 words): Single file or split into 2-3 files if the chapter has distinct subsections.
+- **Large chapters** (> 15,000 words): Subdirectory with its own `llms.txt` and multiple files, grouped by logical subsections (e.g., alphabetical parameter ranges).
+
+### Step 4: Create Chapter Plans
+
+Group chapters into execution batches. Each batch plan should include:
+
+- File names and target paths
+- PDF page ranges (or URLs)
+- Sections to include from the TOC
+- Estimated word count
+
+### Step 5: Identify Cross-Reference Strategy
+
+Decide upfront how to handle internal cross-references:
+
+- During initial conversion, write references as-is (e.g., "see page 147").
+- After all content batches complete, run a dedicated cross-reference linking pass to convert page references to relative markdown links.
+- References to external publications stay as plain text.
+
+## Conversion Phase
+
+### Workflow Per Batch
+
+1. **Read** the source pages for the batch (for PDFs, max 20 pages per read).
+2. **Write** the markdown file(s) following all formatting and structure rules above.
+3. **Verify** word count of generated markdown vs source word count.
+4. **Inspect** if the delta exceeds the threshold — re-read source and fix gaps.
+
+### Parallel Execution
+
+For large documents, use sub-agents to convert multiple chapters in parallel:
+
+- Each agent receives the file path, page range, target markdown path, and sections to include.
+- Agents can run concurrently on non-overlapping page ranges.
+- Verify each agent's output after completion.
+
+## Verification Phase
+
+### Word Count Verification
+
+After each batch, compare markdown word count against the source word count from the reference table.
+
+```bash
+# Per-file verification
+wc -w docs/<path>/file.md
+
+# Per-subdirectory verification
+find docs/<path>/<subdir> -name "*.md" -exec cat {} + | wc -w
+
+# Full project verification
+find docs -name "*.md" -exec cat {} + | wc -w
+```
+
+### Pass Criteria
+
+- **Acceptable delta**: Markdown word count should be within **85-115%** of source word count.
+  - Markdown formatting syntax (`#`, `|`, `` ``` ``) inflates word count slightly.
+  - Removing headers, footers, and page numbers from the source deflates it slightly.
+  - These effects roughly cancel out, so a ±15% range accounts for normal variance.
+- **If delta > 15%**: Flag the chapter for inspection. Compare TOC section headings against markdown `##`/`###` headings to identify missing sections. Re-read the source pages and add missing content.
+- **If delta < -15%**: Content is likely missing. Re-read source and compare section-by-section.
+- **If delta > +15%**: Markdown formatting may be heavy (large tables), or content may be duplicated. Inspect for duplication.
+
+### Heading Audit
+
+For each chapter, extract `##` and `###` headings from the markdown and compare against the source's section/subsection headings for that chapter. Every source heading should have a corresponding markdown heading.
+
+### Structural Integrity Check
+
+After conversion, review the markdown for content completeness beneath every heading and list item. A heading or bullet point that promises content but has nothing underneath it is a structural defect. Check for:
+
+- **Empty sections**: A `##` or `###` heading followed immediately by another heading with no body text between them. Every heading must have content beneath it — at least one paragraph, list, code block, or table.
+- **Stub bullet points**: A bullet point that names a topic (e.g., "Examples of the ACCODE parameter") but has no examples, code blocks, or explanatory text following it. If the source has content under that item, the markdown must too.
+- **Incomplete lists**: A numbered or bulleted list where the source has N items but the markdown has fewer. Count the items and compare.
+- **Missing code blocks**: A section that describes syntax, examples, or commands but contains no fenced code block when the source has one.
+- **Orphaned references**: Text like "as shown in the following example" or "the following table shows" with no example or table following it.
+
+To automate part of this check, scan for back-to-back headings with no content between them:
+
+```bash
+# Find headings immediately followed by another heading (no content between)
+grep -n '^##' docs/<path>/file.md | awk -F: '{
+  if (prev_line && $1 == prev_line + 1) print "Empty section at line " prev_line ": " prev_text
+  prev_line = $1; prev_text = $0
+}'
+```
+
+For any flagged sections, re-read the corresponding source pages and add the missing content.
+
+### Cross-Reference Linking Pass
+
+After all content batches complete, scan all markdown files for patterns like:
+
+- `see page NNN`
+- `"Section Name" on page NNN`
+- `see Chapter NN`
+- `Table N on page NNN`
+- `described on page NNN`
+
+Build a page-to-file mapping from the chapter plan, then replace each reference with a relative markdown link. Skip references to content outside the conversion scope (e.g., excluded chapters, external publications).
+
+Verify no broken links remain by checking that every link target file exists.
+
 ## Extending Existing Documentation
 
 When adding new pages to an existing documentation set:
