@@ -220,6 +220,31 @@ Decide upfront how to handle internal cross-references:
 - After all content batches complete, run a dedicated cross-reference linking pass to convert page references to relative markdown links.
 - References to external publications stay as plain text.
 
+### Step 6: Present the Plan and Wait for Approval
+
+**Required.** Before creating any directories, writing any markdown files, or dispatching any conversion agents, present the plan to the user and explicitly wait for approval. Do not proceed until the user says "go", "approved", "proceed", or equivalent.
+
+The plan must include:
+
+- **Source summary**: document title, total pages, total source word count.
+- **Scope**: which chapters/sections will be converted (and which will be excluded, if the user specified a subset).
+- **Target directory**: the topic directory under `docs/` that will be created (e.g., `docs/ip-users-guide/`).
+- **Per-unit plan table** with one row per target markdown file:
+
+  | # | Target file | Source pages | Source words | Size bucket |
+  |---|---|---|---|---|
+  | 1 | `00-section/00-topic.md` | p.43–76 | 11,750 | medium |
+  | 2 | `00-section/01-next.md` | p.77–87 | 4,928 | small |
+
+  `Size bucket`: small (< 5K), medium (5K–15K), large (> 15K).
+- **Split rationale**: for every chapter split across multiple files, one line explaining the split boundary (alphabetical range, subtopic grouping, etc.).
+- **Execution plan**: how many parallel agents will run per wave, and the total number of waves. Example: "Wave 1 = 5 agents for Ch1-5; Wave 2 = 4 agents for Ch6-10; Wave 3 = verification."
+- **Cross-reference strategy** (from Step 5): whether page references will be linked in a post-conversion pass.
+
+After presenting the plan, stop and ask: *"Approve this plan, or would you like changes?"* If the user requests changes, revise the plan and re-present it. Only begin execution once the user has explicitly approved.
+
+If the user has pre-authorized autonomy for this task ("just do it", "don't ask, proceed"), you may skip the approval step — but still present the plan first as a reference.
+
 ## Conversion Phase
 
 ### Workflow Per Batch
@@ -289,6 +314,30 @@ grep -n '^##' docs/<path>/file.md | awk -F: '{
 ```
 
 For any flagged sections, re-read the corresponding source pages and add the missing content.
+
+### Reporting Verification Results
+
+When presenting verification results to the user, always follow this format:
+
+**Word count verification must be reported as a markdown table** with one row per file:
+
+| File | Source | Markdown | Ratio | Status |
+|---|---:|---:|---:|:---|
+| `<path>` | `<src>` | `<md>` | `<pct>%` | PASS / UNDER / OVER |
+
+- Columns: file path (relative to the topic directory), source word count, markdown word count, ratio (markdown/source × 100), status.
+- `Status` values: **PASS** (85–115%), **UNDER** (< 85%), **OVER** (> 115%).
+- Include a totals row or a one-line total below the table: markdown total / source total = overall ratio%.
+- For any file marked OVER or UNDER, include a one-line justification below the table (e.g., "Appendix B is a dense mapping table — pipes inflate `wc` output; content verified 1:1").
+
+**All other verifications must be reported as a short summary**, not a table. Each verification type gets a named heading and a one-to-three-line result:
+
+- **Structural integrity check**: state whether any back-to-back headings, stub bullets, or orphaned references were found. If any, list the offenders (file:line).
+- **Heading audit**: state whether every source section/subsection heading has a corresponding markdown heading. If any are missing, list them.
+- **File structure check**: state the count of markdown files and `llms.txt` indexes, and whether every directory has an `llms.txt`.
+- **Cross-reference linking pass**: state whether it has been run. If not run, say so explicitly ("pending").
+
+Do not repeat raw command output in the report. Extract the relevant facts and present them in the table + summary form above.
 
 ### Cross-Reference Linking Pass
 
